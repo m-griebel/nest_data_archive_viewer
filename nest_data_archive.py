@@ -137,16 +137,6 @@ class MainWindow(tk.Frame):
             except NameError:
                 all_data = df
         
-        if jsoncb != 0:
-            json_data = OrderedDict()
-            
-            for filename in json_files:
-                with open(filename) as f:
-                    try:
-                        json_data[filename.name.strip('.json')] = json.load(f)
-                    except JSONDecodeError:
-                        messagebox.showwarning('Warning', 'Unable to open JSON file %s' % filename.name)
-        
         a = 6.112
         b = 17.67
         c = 243.5
@@ -169,70 +159,96 @@ class MainWindow(tk.Frame):
         
         nrows = sum(i == 1 for i in selected_vars.values())
         ylabel = {'(temp)':'Temperature ($^\circ$F)', '(humidity)':'Rel Humidity (%)','(dew_point)':'Dew Point ($^\circ$F)'}
-        fig, ax = plt.subplots(nrows=nrows, ncols=1, sharex=True)
+        
+        if nrows > 0:
+            fig, ax = plt.subplots(nrows=nrows, ncols=1, sharex=True)
         
         for key, value in selected_vars.items():
             if value == 1:
-                index = list(selected_vars).index(key)
-                x_data = 'date_time'
-                y_all_data = 'avg' + key
-                y_day_data = 'daily_avg' + key
-                y_mo_data = 'monthly_avg' + key
-                
-                all_data.plot(x=x_data,y=y_all_data, ax=ax[index])
-                all_data.plot(x=x_data,y=y_day_data,ax=ax[index])
-                all_data.plot(x=x_data,y=y_mo_data,ax=ax[index], color='r')
-                
-                ax[index].set_ylabel(ylabel[key])
-                ax[index].legend(loc='upper left')
+                if nrows > 1:
+                    index = list(selected_vars).index(key)
+                    x_data = 'date_time'
+                    y_all_data = 'avg' + key
+                    y_day_data = 'daily_avg' + key
+                    y_mo_data = 'monthly_avg' + key
+                    
+                    all_data.plot(x=x_data,y=y_all_data, ax=ax[index])
+                    all_data.plot(x=x_data,y=y_day_data,ax=ax[index])
+                    all_data.plot(x=x_data,y=y_mo_data,ax=ax[index], color='r')
+                    
+                    ax[index].set_ylabel(ylabel[key])
+                    ax[index].legend(loc='upper left')
+                    ax[0].set_title('Average Indoor Readings')
+                else:
+                    x_data = 'date_time'
+                    y_all_data = 'avg' + key
+                    y_day_data = 'daily_avg' + key
+                    y_mo_data = 'monthly_avg' + key
+                    
+                    all_data.plot(x=x_data,y=y_all_data, ax=ax)
+                    all_data.plot(x=x_data,y=y_day_data,ax=ax)
+                    all_data.plot(x=x_data,y=y_mo_data,ax=ax, color='r')
+                    
+                    ax.set_ylabel(ylabel[key])
+                    ax.legend(loc='upper left')
+                    ax.set_title('Average Indoor Readings')
             
-        plt.xlabel('Date')
-        ax[0].set_title('Average Indoor Readings')    
-#        plt.show()
+                plt.xlabel('Date')
+#               plt.show()
 
         json_events = {'startTs':[], 'eventType':[], 'duration':[], 'heat_target':[], 'cool_target':[]}
 
-        for month in json_data.keys():
-            for day in json_data[month].keys():
-                events = json_data[month][day]['events']
-                for event in events:
-                    json_events['startTs'].append(pd.to_datetime(event['startTs']))
-                    json_events['eventType'].append(event['eventType'])
-                    json_events['duration'].append(event['duration'])
-                    if ('HEAT' in event['eventType']) or ('COOL' in event['eventType']):
-                        json_events['heat_target'].append(event['setPoint']['targets']['heatingTarget'])
-                        json_events['cool_target'].append(event['setPoint']['targets']['coolingTarget'])
-                    elif event['eventType'] == 'EVENT_TYPE_AUTOAWAY':
-                        json_events['heat_target'].append(event['ecoAutoAway']['targets']['heatingTarget'])
-                        json_events['cool_target'].append(event['ecoAutoAway']['targets']['coolingTarget'])
-                    elif event['eventType'] == 'EVENT_TYPE_AWAY':
-                        json_events['heat_target'].append(event['ecoAway']['targets']['heatingTarget'])
-                        json_events['cool_target'].append(event['ecoAway']['targets']['coolingTarget'])
-                    elif event['eventType'] == 'EVENT_TYPE_OFF':
-                        json_events['heat_target'].append(np.nan)
-                        json_events['cool_target'].append(np.nan)
-                    else:
-                        messagebox.showerror('Error','Uknown event type in json data %s' % event['startTs'])
-                        
-        json_events_df = pd.DataFrame(data=json_events)
-        json_events_df['heat_target_c'] = json_events_df['heat_target']
-        json_events_df['heat_target'] = (json_events_df['heat_target']*9/5) + 32
-        json_events_df['duration'] = json_events_df['duration'].str.rstrip('s')
-        json_events_df['duration'] = pd.to_numeric(json_events_df['duration'])
+        if jsoncb != 0:
+            json_data = OrderedDict()
+            
+            for filename in json_files:
+                with open(filename) as f:
+                    try:
+                        json_data[filename.name.strip('.json')] = json.load(f)
+                    except JSONDecodeError:
+                        messagebox.showwarning('Warning', 'Unable to open JSON file %s' % filename.name)
+            for month in json_data.keys():
+                for day in json_data[month].keys():
+                    events = json_data[month][day]['events']
+                    for event in events:
+                        json_events['startTs'].append(pd.to_datetime(event['startTs']))
+                        json_events['eventType'].append(event['eventType'])
+                        json_events['duration'].append(event['duration'])
+                        if ('HEAT' in event['eventType']) or ('COOL' in event['eventType']):
+                            json_events['heat_target'].append(event['setPoint']['targets']['heatingTarget'])
+                            json_events['cool_target'].append(event['setPoint']['targets']['coolingTarget'])
+                        elif event['eventType'] == 'EVENT_TYPE_AUTOAWAY':
+                            json_events['heat_target'].append(event['ecoAutoAway']['targets']['heatingTarget'])
+                            json_events['cool_target'].append(event['ecoAutoAway']['targets']['coolingTarget'])
+                        elif event['eventType'] == 'EVENT_TYPE_AWAY':
+                            json_events['heat_target'].append(event['ecoAway']['targets']['heatingTarget'])
+                            json_events['cool_target'].append(event['ecoAway']['targets']['coolingTarget'])
+                        elif event['eventType'] == 'EVENT_TYPE_OFF':
+                            json_events['heat_target'].append(np.nan)
+                            json_events['cool_target'].append(np.nan)
+                        else:
+                            messagebox.showerror('Error','Uknown event type in json data %s' % event['startTs'])
+                            
+            json_events_df = pd.DataFrame(data=json_events)
+            json_events_df['heat_target_c'] = json_events_df['heat_target']
+            json_events_df['heat_target'] = (json_events_df['heat_target']*9/5) + 32
+            json_events_df['duration'] = json_events_df['duration'].str.rstrip('s')
+            json_events_df['duration'] = pd.to_numeric(json_events_df['duration'])
+            
+            fig2, ax2 = plt.subplots()
+            
+            ax2.set_xlabel('Date')
+            ax2.set_ylabel('Temperature Set Point($^\circ$F)')
+            ln1 = json_events_df.plot(x='startTs',y='heat_target',ax=ax2, color='r')
+            ax3 = ax2.twinx()
+            
+            ax3.set_ylabel('Time (s)')
+            ln2 = json_events_df.plot(x='startTs',y='duration',ax=ax3)
+            
+            fig2.tight_layout()
+            ax2.legend(loc='upper left')
+            ax3.legend(loc='upper right')
         
-        fig2, ax2 = plt.subplots()
-        
-        ax2.set_xlabel('Date')
-        ax2.set_ylabel('Temperature Set Point($^\circ$F)')
-        ln1 = json_events_df.plot(x='startTs',y='heat_target',ax=ax2, color='r')
-        ax3 = ax2.twinx()
-        
-        ax3.set_ylabel('Time (s)')
-        ln2 = json_events_df.plot(x='startTs',y='duration',ax=ax3)
-        
-        fig2.tight_layout()
-        ax2.legend(loc='upper left')
-        ax3.legend(loc='upper right')
         plt.show()
     
         root.destroy()
